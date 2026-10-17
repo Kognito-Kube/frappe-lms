@@ -1,0 +1,87 @@
+services:
+  # ---------------------------------------------------------------------------
+  # 1. Frappe LMS Web & Application Server (Nginx + Gunicorn + Socket.IO + Workers)
+  #    Runs in a single Standard container so all processes share the persistent
+  #    disk mounted at /home/frappe/frappe-bench/sites.
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: frappe-lms
+    runtime: docker
+    plan: standard
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/method/ping
+    disk:
+      name: frappe-lms-sites
+      mountPath: /home/frappe/frappe-bench/sites
+      sizeGB: 20
+    envVars:
+      - fromGroup: frappe-lms-secrets
+      - key: PORT
+        value: "8080"
+      - key: FRAPPE_SITE_NAME
+        value: lms.localhost
+      - key: GUNICORN_WORKERS
+        value: "2"
+      - key: GUNICORN_THREADS
+        value: "4"
+      - key: GUNICORN_TIMEOUT
+        value: "120"
+      - key: CLIENT_MAX_BODY_SIZE
+        value: "100m"
+      - key: DB_HOST
+        fromService:
+          type: pserv
+          name: frappe-lms-db
+          property: host
+      - key: DB_PORT
+        fromService:
+          type: pserv
+          name: frappe-lms-db
+          property: port
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: frappe-lms-redis
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: frappe-lms-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: frappe-lms-redis
+          property: port
+
+  # ---------------------------------------------------------------------------
+  # 2. MariaDB 10.8 Private Service (Configured with utf8mb4 for Frappe)
+  # ---------------------------------------------------------------------------
+  - type: pserv
+    name: frappe-lms-db
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./docker/mariadb.Dockerfile
+    disk:
+      name: frappe-lms-mariadb-data
+      mountPath: /var/lib/mysql
+      sizeGB: 10
+    envVars:
+      - fromGroup: frappe-lms-secrets
+
+  # ---------------------------------------------------------------------------
+  # 3. Managed Render Key Value (Redis) for Frappe Cache, Queues, and Socket.IO
+  # ---------------------------------------------------------------------------
+  - type: keyvalue
+    name: frappe-lms-redis
+    plan: starter
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+envVarGroups:
+  - name: frappe-lms-secrets
+    envVars:
+      - key: MYSQL_ROOT_PASSWORD
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        generateValue: true
