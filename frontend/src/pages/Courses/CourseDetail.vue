@@ -127,6 +127,23 @@
 			<SkeletonLoader v-else variant="course-page" />
 		</template>
 
+		<template #tab-body-discussions>
+			<div v-if="course.data" class="w-[90%] lg:w-[75%] mx-auto py-5">
+				<Discussions
+					doctype="LMS Course"
+					:docname="course.data.name"
+					:title="__('Discussions')"
+					:key="course.data.name"
+					:emptyStateTitle="__('No discussions yet')"
+					:emptyStateText="
+						__(
+							'Start a discussion to ask questions or share insights with instructors and fellow learners.'
+						)
+					"
+				/>
+			</div>
+		</template>
+
 		<template #tab-body-editor>
 			<div
 				v-if="isMobile && editorSelected"
@@ -235,6 +252,7 @@ import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import CourseDashboard from '@/pages/Courses/CourseDashboard.vue'
 import CourseEditor from '@/pages/Courses/CourseEditor.vue'
 import CourseForm from '@/pages/Courses/CourseForm.vue'
+import Discussions from '@/components/Discussions.vue'
 import LessonHelp from '@/components/LessonHelp.vue'
 import ShortcutTooltip from '@/components/ShortcutTooltip.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
@@ -393,40 +411,53 @@ const course = createResource({
 	auto: true,
 }) as Resource<CourseDetails | null>
 
-const tabs = computed<DetailTab[]>(() => [
-	{
-		key: 'overview',
-		label: __('Overview'),
-		component: markRaw(CourseOverview),
-		icon: 'lucide-list',
-		when: isAdmin.value,
-		flow: true,
-		rendersHeading: true,
-	},
-	{
-		key: 'dashboard',
-		label: __('Dashboard'),
-		component: markRaw(CourseDashboard),
-		icon: 'lucide-trending-up',
-		when: isAdmin.value,
-	},
-	{
-		key: 'editor',
-		label: __('Course editor'),
-		shortLabel: __('Editor'),
-		component: markRaw(CourseEditor),
-		icon: 'lucide-book-open',
-		when: isAdmin.value,
-	},
-	{
-		key: 'settings',
-		label: __('Settings'),
-		component: markRaw(CourseForm),
-		icon: 'lucide-settings-2',
-		when: isAdmin.value,
-		flow: true,
-	},
-])
+const isEnrolled = computed<boolean>(() => Boolean(course.data?.membership))
+
+const tabs = computed<DetailTab[]>(() => {
+	const enrolledOrAdmin = isAdmin.value || isEnrolled.value
+	return [
+		{
+			key: 'overview',
+			label: __('Overview'),
+			component: markRaw(CourseOverview),
+			icon: 'lucide-list',
+			when: enrolledOrAdmin,
+			flow: true,
+			rendersHeading: true,
+		},
+		{
+			key: 'dashboard',
+			label: __('Dashboard'),
+			component: markRaw(CourseDashboard),
+			icon: 'lucide-trending-up',
+			when: isAdmin.value,
+		},
+		{
+			key: 'editor',
+			label: __('Course editor'),
+			shortLabel: __('Editor'),
+			component: markRaw(CourseEditor),
+			icon: 'lucide-book-open',
+			when: isAdmin.value,
+		},
+		{
+			key: 'discussions',
+			label: __('Discussions'),
+			component: markRaw(Discussions),
+			icon: 'lucide-message-circle',
+			when: enrolledOrAdmin,
+			flow: true,
+		},
+		{
+			key: 'settings',
+			label: __('Settings'),
+			component: markRaw(CourseForm),
+			icon: 'lucide-settings-2',
+			when: isAdmin.value,
+			flow: true,
+		},
+	]
+})
 
 watch(
 	() => props.courseName,

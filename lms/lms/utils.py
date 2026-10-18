@@ -668,7 +668,7 @@ def handle_notifications(doc: Document, method: str):
 		["reference_doctype", "reference_docname", "owner", "title"],
 		as_dict=1,
 	)
-	if topic.reference_doctype not in ["Course Lesson", "LMS Batch"]:
+	if topic.reference_doctype not in ["Course Lesson", "LMS Batch", "LMS Course"]:
 		return
 	create_notification_log(doc, topic)
 	notify_mentions_on_portal(doc, topic)
@@ -692,6 +692,23 @@ def get_course_details_for_notification(topic: dict):
 	return subject, link, users
 
 
+def get_lms_course_details_for_notification(topic: dict):
+	users = []
+	course = topic.reference_docname
+	course_title = frappe.db.get_value("LMS Course", course, "title")
+	instructors = frappe.db.get_all(
+		"Course Instructor", {"parent": course, "parenttype": "LMS Course"}, pluck="instructor"
+	)
+
+	users.append(topic.owner)
+	users += instructors
+
+	subject = _("New reply on the topic {0} in course {1}").format(topic.title, course_title)
+	link = get_lms_route(f"courses/{course}#discussions")
+
+	return subject, link, users
+
+
 def get_batch_details_for_notification(topic: dict):
 	users = []
 	batch_title = frappe.db.get_value("LMS Batch", topic.reference_docname, "title")
@@ -711,6 +728,8 @@ def get_batch_details_for_notification(topic: dict):
 def create_notification_log(doc: Document, topic: dict):
 	if topic.reference_doctype == "Course Lesson":
 		subject, link, users = get_course_details_for_notification(topic)
+	elif topic.reference_doctype == "LMS Course":
+		subject, link, users = get_lms_course_details_for_notification(topic)
 	else:
 		subject, link, users = get_batch_details_for_notification(topic)
 
@@ -745,6 +764,12 @@ def notify_mentions_on_portal(doc: Document, topic: dict):
 			frappe.bold(from_user_name), frappe.bold(topic.title)
 		)
 		link = get_lesson_url(course, get_lesson_index(topic.reference_docname))
+	elif topic.reference_doctype == "LMS Course":
+		course_title = frappe.db.get_value("LMS Course", topic.reference_docname, "title")
+		subject = _("{0} mentioned you in a comment in {1}").format(
+			frappe.bold(from_user_name), frappe.bold(course_title or topic.title)
+		)
+		link = get_lms_route(f"courses/{topic.reference_docname}#discussions")
 	else:
 		batch_title = frappe.db.get_value("LMS Batch", topic.reference_docname, "title")
 		subject = _("{0} mentioned you in a comment in {1}").format(
@@ -793,7 +818,9 @@ def notify_mentions_via_email(doc: Document, topic: dict):
 
 	if topic.reference_doctype == "LMS Batch":
 		link = f"/batches/{topic.reference_docname}#discussions"
-	if topic.reference_doctype == "Course Lesson":
+	elif topic.reference_doctype == "LMS Course":
+		link = f"/courses/{topic.reference_docname}#discussions"
+	elif topic.reference_doctype == "Course Lesson":
 		course = frappe.db.get_value("Course Lesson", topic.reference_docname, "course")
 		lesson_index = get_lesson_index(topic.reference_docname)
 		link = get_lesson_url(course, lesson_index)
@@ -2827,6 +2854,10 @@ def can_access_topic(doctype: str, docname: str) -> bool:
 		is_student = frappe.db.exists("LMS Enrollment", {"course": course, "member": frappe.session.user})
 		if not is_student and not can_modify_course(course):
 			return False
+	elif doctype == "LMS Course":
+		is_student = frappe.db.exists("LMS Enrollment", {"course": docname, "member": frappe.session.user})
+		if not is_student and not can_modify_course(docname):
+			return False
 	elif doctype == "LMS Batch":
 		from lms.lms.permissions import can_author_batch
 
@@ -3738,8 +3769,26 @@ def validate_discussion_reply(doc: Document, method: str):
 	if topic.reference_doctype == "Course Lesson":
 		validate_course_access(topic.reference_docname)
 
+	elif topic.reference_doctype == "LMS Course":
+		validate_lms_course_discussion_access(topic.reference_docname)
+
 	elif topic.reference_doctype == "LMS Batch":
 		validate_batch_access(topic.reference_docname)
+
+
+def validate_lms_course_discussion_access(course: str):
+	if not frappe.db.exists("LMS Course", course):
+		frappe.throw(_("The course does not exist."))
+
+	if has_moderator_role():
+		return
+
+	if has_course_instructor_role():
+		return
+
+	enrollment_exists = frappe.db.exists("LMS Enrollment", {"member": frappe.session.user, "course": course})
+	if not enrollment_exists:
+		frappe.throw(_("You do not have access to this course."))
 
 
 def validate_course_access(lesson: str):
