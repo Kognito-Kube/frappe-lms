@@ -35,6 +35,10 @@ export FRAPPE_SITE_NAME="${FRAPPE_SITE_NAME:-lms.localhost}"
 export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}"
 export MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-123}"
 
+# Ensure MariaDB CLI tools do not fail SSL handshake over Render's internal network
+printf "[client]\nskip-ssl\n" > /home/frappe/.my.cnf
+chmod 600 /home/frappe/.my.cnf
+
 # 4. Configure common_site_config.json atomically via jq
 echo "Configuring common_site_config.json (DB=${DB_HOST}:${DB_PORT}, Site=${FRAPPE_SITE_NAME})..."
 jq \
@@ -59,10 +63,11 @@ jq \
 echo "Waiting for MariaDB at ${DB_HOST}:${DB_PORT}..."
 wait-for-it -t 180 "${DB_HOST}:${DB_PORT}"
 
-until mariadb-admin ping -h "$DB_HOST" -P "$DB_PORT" -u root -p"$MYSQL_ROOT_PASSWORD" --silent 2>/dev/null; do
+until /home/frappe/frappe-bench/env/bin/python -c "import os, pymysql; conn = pymysql.connect(host=os.environ['DB_HOST'], port=int(os.environ['DB_PORT']), user='root', password=os.environ['MYSQL_ROOT_PASSWORD']); conn.close()" 2>/dev/null; do
   echo "Waiting for MariaDB to accept root connections..."
   sleep 3
 done
+echo "MariaDB connection verified!"
 
 if [ -n "$REDIS_HOST" ] && [ -n "$REDIS_PORT" ]; then
   echo "Waiting for Redis at ${REDIS_HOST}:${REDIS_PORT}..."

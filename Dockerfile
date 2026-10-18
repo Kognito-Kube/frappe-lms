@@ -3,6 +3,7 @@ FROM ghcr.io/frappe/lms:stable
 USER root
 
 # Install system dependencies required to build and run lms Python & C extensions
+# and disable mandatory TLS verification in Debian trixie's MariaDB 11 client for internal private network DB
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
       gcc \
@@ -14,12 +15,10 @@ RUN apt-get update && \
       libxslt1-dev \
       libcairo2 \
       libcairo2-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy the Render startup script and normalize line endings
-COPY docker/render-entrypoint.sh /usr/local/bin/render-entrypoint.sh
-RUN sed -i 's/\r$//' /usr/local/bin/render-entrypoint.sh && \
-    chmod 755 /usr/local/bin/render-entrypoint.sh
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /etc/mysql/mariadb.conf.d /etc/mysql/conf.d && \
+    printf "[client]\nskip-ssl\n" > /etc/mysql/mariadb.conf.d/99-skip-ssl.cnf && \
+    printf "[client]\nskip-ssl\n" > /etc/mysql/conf.d/99-skip-ssl.cnf
 
 # Overlay repository code into the Frappe bench LMS app directory
 RUN rm -rf /home/frappe/frappe-bench/apps/lms
@@ -59,6 +58,15 @@ RUN git clone --depth 1 --filter=blob:none --sparse --branch develop https://git
     rm -rf /home/frappe/frappe-bench/apps/lms/node_modules \
            /home/frappe/frappe-bench/apps/lms/frontend/node_modules \
            /home/frappe/.cache
+
+USER root
+# Copy the Render startup script at the end for optimal layer caching
+COPY docker/render-entrypoint.sh /usr/local/bin/render-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/render-entrypoint.sh && \
+    chmod 755 /usr/local/bin/render-entrypoint.sh
+
+USER frappe
+WORKDIR /home/frappe/frappe-bench
 
 EXPOSE 8080
 
