@@ -94,6 +94,7 @@ else
 fi
 
 bench use "${FRAPPE_SITE_NAME}"
+bench --site "${FRAPPE_SITE_NAME}" enable-scheduler || true
 
 # 7. Launch Frappe background services, Socket.IO, Gunicorn, and Nginx
 export FRAPPE_REDIS_CACHE="$REDIS_URL"
