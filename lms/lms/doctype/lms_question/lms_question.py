@@ -23,7 +23,7 @@ QUESTION_POSSIBILITY_FIELDS = [f"possibility_{i}" for i in range(1, 11)]
 
 # Prompt/options ship with the quiz attempt; explanations are answer-key material
 # and are gated harder (see can_view_quiz_answers).
-STUDENT_QUESTION_FIELDS = ("question", *QUESTION_OPTION_FIELDS)
+STUDENT_QUESTION_FIELDS = ("question", "survey_json", *QUESTION_OPTION_FIELDS)
 QUESTION_MEDIA_FIELDS = (*STUDENT_QUESTION_FIELDS, *QUESTION_EXPLANATION_FIELDS)
 
 
@@ -40,6 +40,19 @@ def validate_correct_answers(question):
 		validate_correct_options(question)
 	elif question.type == "User Input":
 		validate_possible_answer(question)
+	elif question.type == "SurveyJS":
+		validate_survey_question(question)
+
+
+def validate_survey_question(question):
+	if not question.survey_json or not str(question.survey_json).strip():
+		frappe.throw(_("Add a valid SurveyJS JSON schema for this question."))
+	try:
+		parsed = frappe.parse_json(question.survey_json)
+	except Exception:
+		frappe.throw(_("SurveyJS schema must be valid JSON."))
+	if not isinstance(parsed, dict):
+		frappe.throw(_("SurveyJS schema must be a JSON object."))
 
 
 def validate_duplicate_options(question):

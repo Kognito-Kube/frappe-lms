@@ -440,6 +440,26 @@
 									</FeedbackBanner>
 								</div>
 							</div>
+							<div
+								v-else-if="questionDetails.data.type == 'SurveyJS'"
+								class="space-y-3"
+							>
+								<SurveyQuestionRenderer
+									:survey-json="questionDetails.data.survey_json || ''"
+									:model-value="possibleAnswer || ''"
+									:disabled="showAnswers.length ? true : false"
+									@update:model-value="(val) => (possibleAnswer = val)"
+								/>
+								<div role="status" class="empty:absolute">
+									<FeedbackBanner
+										v-if="showAnswers.length"
+										data-testid="quiz-feedback"
+										:correct="!!showAnswers[0]"
+									>
+										{{ showAnswers[0] ? __('Correct') : __('Incorrect') }}
+									</FeedbackBanner>
+								</div>
+							</div>
 							<div v-else>
 								<RichTextEditor
 									:content="possibleAnswer"
@@ -831,6 +851,7 @@ import ResponsiveListView from '@/components/ResponsiveListView.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import router from '@/router'
 import QuizActivityLog from '@/components/Quiz/QuizActivityLog.vue'
+import SurveyQuestionRenderer from '@/components/Quiz/SurveyQuestionRenderer.vue'
 import ProctoringMonitor from '@/components/ProctoringMonitor.vue'
 import AssessmentCard from '@/components/Assessment/AssessmentCard.vue'
 import AssessmentCardHeader from '@/components/Assessment/AssessmentCardHeader.vue'
@@ -1777,6 +1798,8 @@ const getInstructions = (question: QuizQuestionDetails): string => {
 	if (question.type == 'Choices')
 		if (question.multiple) return __('Choose all answers that apply')
 		else return __('Choose one answer')
+	else if (question.type == 'SurveyJS')
+		return __('Complete the interactive question below')
 	else return __('Type your answer')
 }
 

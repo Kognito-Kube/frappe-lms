@@ -594,6 +594,8 @@ def process_results(results: list, quiz_details: dict):
 		if question_details.type != "Open Ended":
 			if question_details.type == "User Input":
 				correct = bool(check_input_answers(question_details.question, result["answer"][0]))
+			elif question_details.type == "SurveyJS":
+				correct = bool(check_survey_answer(question_details.question, result["answer"][0]))
 			else:
 				correct = verify_answer(question_details.question, result["answer"])
 			result["answer"] = ", ".join(result["answer"])
@@ -783,7 +785,10 @@ def check_answer(quiz: str, question: str, question_type: str, answers: str):
 	# A blank input answer (empty list, or the [null] the UI emits for an untouched field)
 	# scores as incorrect; coerce to "" so answers[0] can't IndexError / feed None onward.
 	answer = answers[0] if answers else ""
-	return check_input_answers(question, answer if isinstance(answer, str) else "")
+	answer = answer if isinstance(answer, str) else ""
+	if question_type == "SurveyJS":
+		return check_survey_answer(question, answer)
+	return check_input_answers(question, answer)
 
 
 def get_question_details(question: str):
@@ -815,6 +820,83 @@ def check_input_answers(question: str, answer: str):
 		if possibility and fuzz.token_sort_ratio(possibility, answer) > 85:
 			return 1
 	return 0
+
+
+def _normalize_survey_val(val):
+	if isinstance(val, str):
+		return val.strip().lower()
+	if isinstance(val, list):
+		return [_normalize_survey_val(v) for v in val]
+	if isinstance(val, dict):
+		return {str(k): _normalize_survey_val(v) for k, v in val.items()}
+	return val
+
+
+def check_survey_answer(question: str, answer: str) -> int:
+	if not answer or not answer.strip():
+		return 0
+
+	try:
+		submitted = json.loads(answer)
+	except Exception:
+		submitted = answer.strip()
+
+	if submitted in (None, "", {}, []):
+		return 0
+
+	row = frappe.db.get_value(
+		"LMS Question", question, ["survey_json", "survey_answer"], as_dict=1
+	)
+	if not row:
+		return 0
+
+	expected = None
+	if row.survey_answer and row.survey_answer.strip():
+		try:
+			expected = json.loads(row.survey_answer)
+		except Exception:
+			expected = row.survey_answer.strip()
+
+	# Also extract `correctAnswer` embedded inside SurveyJS elements if survey_answer wasn't set separately
+	if expected in (None, "", {}) and row.survey_json:
+		try:
+			schema = json.loads(row.survey_json)
+			elements = []
+			if isinstance(schema, dict):
+				if isinstance(schema.get("elements"), list):
+					elements = schema["elements"]
+				elif isinstance(schema.get("pages"), list):
+					for page in schema["pages"]:
+						if isinstance(page, dict) and isinstance(page.get("elements"), list):
+							elements.extend(page["elements"])
+				elif schema.get("type"):
+					elements = [schema]
+			extracted = {
+				el.get("name", f"q{idx + 1}"): el["correctAnswer"]
+				for idx, el in enumerate(elements)
+				if isinstance(el, dict) and "correctAnswer" in el and el["correctAnswer"] not in (None, "", {}, [])
+			}
+			if extracted:
+				expected = extracted
+		except Exception:
+			pass
+
+	# If no answer key is configured, grade any non-empty completion as 1
+	if expected in (None, "", {}):
+		return 1
+
+	norm_sub = _normalize_survey_val(submitted)
+	norm_exp = _normalize_survey_val(expected)
+
+	if isinstance(norm_exp, dict) and isinstance(norm_sub, dict):
+		for key, exp_val in norm_exp.items():
+			if exp_val in (None, "", {}, []):
+				continue
+			if key not in norm_sub or norm_sub[key] != exp_val:
+				return 0
+		return 1
+
+	return 1 if norm_sub == norm_exp else 0
 
 
 @frappe.whitelist()
@@ -863,7 +945,7 @@ def get_question_meta(questions: str | list):
 	return meta
 
 
-QUESTION_BANK_TYPES = ("Choices", "User Input", "Open Ended")
+QUESTION_BANK_TYPES = ("Choices", "User Input", "Open Ended", "SurveyJS")
 
 
 def _name_list(value):

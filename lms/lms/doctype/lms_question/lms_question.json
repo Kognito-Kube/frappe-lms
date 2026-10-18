@@ -75,7 +75,10 @@
   "possibility_7",
   "possibility_8",
   "possibility_9",
-  "possibility_10"
+  "possibility_10",
+  "section_break_surveyjs",
+  "survey_json",
+  "survey_answer"
  ],
  "fields": [
   {
@@ -89,7 +92,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Type",
-   "options": "Choices\nUser Input\nOpen Ended"
+   "options": "Choices\nUser Input\nOpen Ended\nSurveyJS"
   },
   {
    "default": "0",
@@ -427,6 +430,28 @@
    "fieldname": "possibility_10",
    "fieldtype": "Small Text",
    "label": "Possible Answer 10"
+  },
+  {
+   "depends_on": "eval: doc.type == 'SurveyJS'",
+   "fieldname": "section_break_surveyjs",
+   "fieldtype": "Section Break",
+   "label": "SurveyJS Configuration"
+  },
+  {
+   "depends_on": "eval: doc.type == 'SurveyJS'",
+   "fieldname": "survey_json",
+   "fieldtype": "Code",
+   "label": "SurveyJS Schema (JSON)",
+   "mandatory_depends_on": "eval: doc.type == 'SurveyJS'",
+   "options": "JSON"
+  },
+  {
+   "depends_on": "eval: doc.type == 'SurveyJS'",
+   "fieldname": "survey_answer",
+   "fieldtype": "Code",
+   "label": "Expected Answer (JSON)",
+   "options": "JSON",
+   "permlevel": 1
   },
   {
    "fieldname": "authors",

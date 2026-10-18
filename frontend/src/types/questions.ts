@@ -4,7 +4,7 @@
 export interface LmsQuestionListRow {
 	name: string
 	question: string
-	type: 'Choices' | 'User Input' | 'Open Ended'
+	type: 'Choices' | 'User Input' | 'Open Ended' | 'SurveyJS'
 	multiple: number
 	/** frappe's own `owner`, shown as the author until LMS Question has one. */
 	owner: string
@@ -12,7 +12,7 @@ export interface LmsQuestionListRow {
 }
 
 /**
- * The 4 author-facing types (see `QUESTION_TYPES` in `@/utils/quizQuestion`),
+ * The author-facing types (see `QUESTION_TYPES` in `@/utils/quizQuestion`),
  * reused as the list page's type filter. 'Choices' alone can't tell single from
  * multiple.
  */
@@ -22,3 +22,4 @@ export type QuestionTypeFilter =
 	| 'multiple'
 	| 'user_input'
 	| 'open_ended'
+	| 'surveyjs'

@@ -2371,6 +2371,7 @@ def get_quiz_with_questions(quiz: str) -> dict:
 				"question",
 				"type",
 				"multiple",
+				"survey_json",
 				*QUESTION_OPTION_FIELDS,
 			]
 			if can_view_quiz_answers(quiz, quiz_doc.get("show_answers")):

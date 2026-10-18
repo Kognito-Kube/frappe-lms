@@ -1,6 +1,6 @@
 /** What `lms.lms.utils.get_quiz_with_questions` returns, as the quiz card reads it. */
 
-export type QuizQuestionType = 'Choices' | 'User Input' | 'Open Ended'
+export type QuizQuestionType = 'Choices' | 'User Input' | 'Open Ended' | 'SurveyJS'
 
 /** One LMS Question. `option_N` / `explanation_N` run from 1 to 10. */
 export type QuizQuestionDetails = {
@@ -8,6 +8,7 @@ export type QuizQuestionDetails = {
 	question: string
 	type: QuizQuestionType
 	multiple?: 0 | 1
+	survey_json?: string | null
 } & {
 	[key: `option_${number}` | `explanation_${number}`]: string | null | undefined
 }

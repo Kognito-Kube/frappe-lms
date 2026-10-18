@@ -143,11 +143,87 @@
 			</Button>
 		</div>
 	</div>
+
+	<div v-else-if="uiType === 'surveyjs'" class="space-y-3" data-testid="surveyjs-editor">
+		<div class="flex flex-wrap items-center justify-between gap-2">
+			<div class="flex flex-wrap items-center gap-1.5">
+				<span class="text-xs font-medium text-ink-gray-6 me-1">
+					{{ __('Templates:') }}
+				</span>
+				<Button
+					v-for="preset in SURVEY_PRESETS"
+					:key="preset.key"
+					size="sm"
+					variant="subtle"
+					@click="applySurveyPreset(preset)"
+				>
+					{{ preset.label }}
+				</Button>
+			</div>
+		</div>
+
+		<div class="grid gap-3 lg:grid-cols-2">
+			<div class="space-y-1.5">
+				<label class="block text-xs font-medium text-ink-gray-7">
+					{{ __('SurveyJS JSON Schema') }}
+					<span class="text-ink-red-5">*</span>
+				</label>
+				<textarea
+					v-model="question.survey_json"
+					rows="8"
+					class="w-full rounded-4 border bg-surface-base p-2.5 font-mono text-xs text-ink-gray-9 focus:outline-none"
+					:class="
+						surveyJsonInvalid
+							? 'border-outline-red-3'
+							: 'border-outline-gray-2 focus:border-outline-gray-4'
+					"
+					:placeholder="__('Paste or edit SurveyJS JSON schema')"
+					@blur="markTouched('survey_json')"
+				/>
+				<p
+					v-if="surveyJsonInvalid"
+					class="flex items-center gap-1.5 text-xs text-ink-red-5"
+				>
+					<span class="lucide-circle-alert size-3.5 shrink-0" />
+					{{ __('Enter a valid SurveyJS JSON object with elements, pages, or type.') }}
+				</p>
+			</div>
+
+			<div class="space-y-1.5">
+				<div class="flex items-center justify-between">
+					<label class="block text-xs font-medium text-ink-gray-7">
+						{{ __('Interactive Preview & Correct Answer Key') }}
+					</label>
+					<button
+						v-if="question.survey_answer"
+						type="button"
+						class="text-xs text-ink-gray-6 hover:text-ink-gray-9 underline"
+						@click="question.survey_answer = null"
+					>
+						{{ __('Clear answer key') }}
+					</button>
+				</div>
+				<SurveyQuestionRenderer
+					:survey-json="question.survey_json || ''"
+					:model-value="question.survey_answer || ''"
+					@update:model-value="(val) => (question.survey_answer = val)"
+				/>
+				<p class="text-xs text-ink-gray-6">
+					{{
+						__(
+							'Interact with the preview above to record the expected correct answer for auto-grading.'
+						)
+					}}
+				</p>
+			</div>
+		</div>
+	</div>
 </template>
 
 <script setup>
 import { Button, Checkbox, FormControl } from 'frappe-ui'
 import { computed, nextTick, reactive, ref, useId, watch } from 'vue'
+import SurveyQuestionRenderer from './SurveyQuestionRenderer.vue'
 import {
 	MAX_OPTIONS,
 	REQUIRED_OPTIONS,
@@ -156,6 +232,7 @@ import {
 	hasRequiredCorrectOptions,
 	hasRequiredOptions,
 	hasRequiredPossibilities,
+	hasValidSurveyJson,
 	isChoice,
 } from '@/utils/quizQuestion'
 
@@ -318,4 +395,143 @@ watch(
 const toggleCorrect = (n, checked) => {
 	props.question[`is_correct_${n}`] = checked ? 1 : 0
 }
+
+const SURVEY_PRESETS = [
+	{
+		key: 'ranking',
+		get label() {
+			return __('Ranking')
+		},
+		schema: {
+			elements: [
+				{
+					type: 'ranking',
+					name: 'rank_order',
+					title: 'Drag or use arrows to order the steps from first to last',
+					choices: ['Requirement Analysis', 'System Design', 'Implementation', 'Testing & Deployment'],
+				},
+			],
+		},
+		answer: {
+			rank_order: ['Requirement Analysis', 'System Design', 'Implementation', 'Testing & Deployment'],
+		},
+	},
+	{
+		key: 'matrix',
+		get label() {
+			return __('Matrix Grid')
+		},
+		schema: {
+			elements: [
+				{
+					type: 'matrix',
+					name: 'classification',
+					title: 'Match each technology to its primary layer',
+					columns: ['Frontend', 'Backend', 'Database'],
+					rows: [
+						{ value: 'vue', text: 'Vue 3' },
+						{ value: 'frappe', text: 'Frappe Python' },
+						{ value: 'mariadb', text: 'MariaDB' },
+					],
+				},
+			],
+		},
+		answer: {
+			classification: {
+				vue: 'Frontend',
+				frappe: 'Backend',
+				mariadb: 'Database',
+			},
+		},
+	},
+	{
+		key: 'rating',
+		get label() {
+			return __('Rating Scale')
+		},
+		schema: {
+			elements: [
+				{
+					type: 'rating',
+					name: 'confidence_score',
+					title: 'Select the target rating value on the scale',
+					rateMin: 1,
+					rateMax: 5,
+					minRateDescription: 'Low',
+					maxRateDescription: 'High',
+				},
+			],
+		},
+		answer: {
+			confidence_score: 5,
+		},
+	},
+	{
+		key: 'boolean',
+		get label() {
+			return __('Boolean (Yes/No)')
+		},
+		schema: {
+			elements: [
+				{
+					type: 'boolean',
+					name: 'statement_true',
+					title: 'Is this statement true or false?',
+					labelTrue: 'True',
+					labelFalse: 'False',
+				},
+			],
+		},
+		answer: {
+			statement_true: true,
+		},
+	},
+	{
+		key: 'multipletext',
+		get label() {
+			return __('Fill in the Blanks')
+		},
+		schema: {
+			elements: [
+				{
+					type: 'multipletext',
+					name: 'blanks',
+					title: 'Complete the missing terms below',
+					items: [
+						{ name: 'protocol', title: 'Web Protocol', placeholder: 'e.g. HTTPS' },
+						{ name: 'port', title: 'Default Port', placeholder: 'e.g. 443' },
+					],
+				},
+			],
+		},
+		answer: {
+			blanks: {
+				protocol: 'HTTPS',
+				port: '443',
+			},
+		},
+	},
+]
+
+const applySurveyPreset = (preset) => {
+	props.question.survey_json = JSON.stringify(preset.schema, null, 2)
+	props.question.survey_answer = JSON.stringify(preset.answer)
+}
+
+const surveyJsonInvalid = computed(
+	() =>
+		props.uiType === 'surveyjs' &&
+		!hasValidSurveyJson(props.question) &&
+		revealed('survey_json')
+)
+
+watch(
+	() => props.uiType,
+	(type) => {
+		if (type === 'surveyjs' && !props.question.survey_json) {
+			applySurveyPreset(SURVEY_PRESETS[0])
+		}
+	},
+	{ immediate: true }
+)
 </script>

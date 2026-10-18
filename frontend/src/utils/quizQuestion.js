@@ -50,6 +50,16 @@ export const QUESTION_TYPES = [
 		},
 		icon: 'lucide-align-left',
 	},
+	{
+		value: 'surveyjs',
+		get label() {
+			return __('SurveyJS')
+		},
+		get description() {
+			return __('Ranking, Matrix, Rating & interactive blocks')
+		},
+		icon: 'lucide-sliders-horizontal',
+	},
 ]
 
 // A fixed object, not QUESTION_TYPES[0], so uiTypeMeta always has a label and icon
@@ -80,7 +90,10 @@ export function hasContent(html) {
 // The empty option/answer skeleton. Assigning it wipes a stale question's fields
 // rather than leaving whichever ones the last question happened to fill.
 export const blankOptionFields = () => {
-	const fields = {}
+	const fields = {
+		survey_json: null,
+		survey_answer: null,
+	}
 	for (let i = 1; i <= MAX_OPTIONS; i++) {
 		fields[`option_${i}`] = null
 		fields[`is_correct_${i}`] = 0
@@ -97,6 +110,7 @@ export const marksLabel = (n) =>
 export function toUiType(question) {
 	if (question?.type === 'User Input') return 'user_input'
 	if (question?.type === 'Open Ended') return 'open_ended'
+	if (question?.type === 'SurveyJS') return 'surveyjs'
 	return question?.multiple ? 'multiple' : 'single'
 }
 
@@ -120,6 +134,8 @@ export function toBackendType(uiValue) {
 			return { type: 'User Input', multiple: 0 }
 		case 'open_ended':
 			return { type: 'Open Ended', multiple: 0 }
+		case 'surveyjs':
+			return { type: 'SurveyJS', multiple: 0 }
 		case 'single':
 		default:
 			return { type: 'Choices', multiple: 0 }
@@ -197,6 +213,21 @@ export const hasRequiredPossibilities = (question) =>
 		filled(question?.[`possibility_${i + 1}`])
 	).filter(Boolean).length >= REQUIRED_POSSIBILITIES
 
+export const hasValidSurveyJson = (question) => {
+	const raw = question?.survey_json
+	if (!filled(raw)) return false
+	try {
+		const parsed = JSON.parse(raw)
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false
+		if (Array.isArray(parsed.elements) && parsed.elements.length > 0) return true
+		if (Array.isArray(parsed.pages) && parsed.pages.length > 0) return true
+		if (typeof parsed.type === 'string' && parsed.type.trim()) return true
+		return false
+	} catch {
+		return false
+	}
+}
+
 // The mandatory-field rule for one question, shared by the card in a quiz and
 // the dialog over the Questions list, so the two cannot disagree about what
 // Save allows. The form marks fields red from the same predicates.
@@ -211,6 +242,8 @@ export const isQuestionValid = (question, uiType) => {
 		)
 
 	if (uiType === 'user_input') return hasRequiredPossibilities(question)
+
+	if (uiType === 'surveyjs') return hasValidSurveyJson(question)
 
 	// open_ended: the question text is the only requirement.
 	return true
