@@ -38,13 +38,12 @@ RUN if [ ! -d /home/frappe/frappe-bench/apps/payments ]; then \
       -e /home/frappe/frappe-bench/apps/lms && \
     /home/frappe/frappe-bench/env/bin/python -c "import frappe, payments, lms; print('Verified imports: frappe, payments, lms')"
 
-# 2. Build LMS frontend SPA (_lms.html + public/frontend) and bake into /home/frappe/frappe-bench/assets
-RUN if [ ! -d /home/frappe/frappe-bench/apps/frappe/ui ]; then \
-      git clone --depth 1 --filter=blob:none --sparse --branch develop https://github.com/frappe/frappe /tmp/frappe-ui && \
-      cd /tmp/frappe-ui && git sparse-checkout set ui && \
-      cp -r /tmp/frappe-ui/ui /home/frappe/frappe-bench/apps/frappe/ui && \
-      rm -rf /tmp/frappe-ui; \
-    fi && \
+# 2. Update apps/frappe/ui from develop and build LMS frontend SPA (_lms.html + public/frontend)
+RUN git clone --depth 1 --filter=blob:none --sparse --branch develop https://github.com/frappe/frappe /tmp/frappe-ui && \
+    cd /tmp/frappe-ui && git sparse-checkout set ui && \
+    rm -rf /home/frappe/frappe-bench/apps/frappe/ui && \
+    cp -r /tmp/frappe-ui/ui /home/frappe/frappe-bench/apps/frappe/ui && \
+    rm -rf /tmp/frappe-ui && \
     mkdir -p /home/frappe/frappe-bench/sites && \
     echo '{"socketio_port": 9000}' > /home/frappe/frappe-bench/sites/common_site_config.json && \
     cd /home/frappe/frappe-bench/apps/lms && \
