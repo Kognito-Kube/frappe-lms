@@ -34,10 +34,7 @@ services:
           name: frappe-lms-db
           property: host
       - key: DB_PORT
-        fromService:
-          type: pserv
-          name: frappe-lms-db
-          property: port
+        value: "3306"
       - key: REDIS_URL
         fromService:
           type: keyvalue
@@ -68,6 +65,8 @@ services:
       sizeGB: 10
     envVars:
       - fromGroup: frappe-lms-secrets
+      - key: PORT
+        value: "3306"
 
   # ---------------------------------------------------------------------------
   # 3. Managed Render Key Value (Redis) for Frappe Cache, Queues, and Socket.IO

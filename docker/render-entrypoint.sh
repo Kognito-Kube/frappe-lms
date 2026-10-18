@@ -18,14 +18,16 @@ ln -s "$BAKED_PATH" "$ASSETS_PATH"
 rm -rf /home/frappe/frappe-bench/sites/lost+found 2>/dev/null || true
 
 # 2. Ensure apps.txt and common_site_config.json exist
-ls -1 /home/frappe/frappe-bench/apps > /home/frappe/frappe-bench/sites/apps.txt
-if [ ! -f /home/frappe/frappe-bench/sites/common_site_config.json ]; then
+printf "frappe\npayments\nlms\n" > /home/frappe/frappe-bench/sites/apps.txt
+if [ ! -s /home/frappe/frappe-bench/sites/common_site_config.json ]; then
   echo "{}" > /home/frappe/frappe-bench/sites/common_site_config.json
 fi
 
 # 3. Resolve environment defaults
 export DB_HOST="${DB_HOST:-mariadb}"
-export DB_PORT="${DB_PORT:-3306}"
+if [ -z "$DB_PORT" ] || [ "$DB_PORT" = "10000" ]; then
+  export DB_PORT="3306"
+fi
 export REDIS_HOST="${REDIS_HOST:-redis}"
 export REDIS_PORT="${REDIS_PORT:-6379}"
 export REDIS_URL="${REDIS_URL:-redis://${REDIS_HOST}:${REDIS_PORT}}"
@@ -33,16 +35,25 @@ export FRAPPE_SITE_NAME="${FRAPPE_SITE_NAME:-lms.localhost}"
 export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}"
 export MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-123}"
 
-# 4. Configure common_site_config.json
-echo "Configuring common_site_config.json..."
-bench set-config -g db_host "$DB_HOST"
-bench set-config -gp db_port "$DB_PORT"
-bench set-config -g redis_cache "$REDIS_URL"
-bench set-config -g redis_queue "$REDIS_URL"
-bench set-config -g redis_socketio "$REDIS_URL"
-bench set-config -gp socketio_port 9000
-bench set-config -g default_site "$FRAPPE_SITE_NAME"
-bench set-config -gp serve_default_site true
+# 4. Configure common_site_config.json atomically via jq
+echo "Configuring common_site_config.json (DB=${DB_HOST}:${DB_PORT}, Site=${FRAPPE_SITE_NAME})..."
+jq \
+  --arg db_host "$DB_HOST" \
+  --argjson db_port "$DB_PORT" \
+  --arg redis_url "$REDIS_URL" \
+  --arg default_site "$FRAPPE_SITE_NAME" \
+  '. + {
+    db_host: $db_host,
+    db_port: $db_port,
+    redis_cache: $redis_url,
+    redis_queue: $redis_url,
+    redis_socketio: $redis_url,
+    socketio_port: 9000,
+    default_site: $default_site,
+    serve_default_site: true
+  }' \
+  /home/frappe/frappe-bench/sites/common_site_config.json > /home/frappe/frappe-bench/sites/common_site_config.json.tmp && \
+  mv /home/frappe/frappe-bench/sites/common_site_config.json.tmp /home/frappe/frappe-bench/sites/common_site_config.json
 
 # 5. Wait for MariaDB and Redis
 echo "Waiting for MariaDB at ${DB_HOST}:${DB_PORT}..."
